@@ -1,0 +1,46 @@
+# =====================
+# Dati (troppo pesanti per GitHub)
+# =====================
+data/raw/
+data/keypoints/
+data/annotations/
+results/
+
+# Eccezione: tieni i file di esempio piccoli
+!data/raw/.gitkeep
+!data/keypoints/.gitkeep
+!data/annotations/.gitkeep
+!results/.gitkeep
+
+# =====================
+# Ambiente Python
+# =====================
+venv/
+.env
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# =====================
+# Jupyter
+# =====================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# =====================
+# Modelli YOLO scaricati
+# =====================
+*.pt
+
+# =====================
+# Editor e OS
+# =====================
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db

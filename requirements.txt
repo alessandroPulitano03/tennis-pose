@@ -1,0 +1,45 @@
+# =====================
+# Core — Image Processing & YOLO
+# =====================
+ultralytics>=8.0.0        # YOLO-Pose + tracker ByteTrack
+opencv-python>=4.8.0      # lettura/scrittura video e annotazioni
+
+# =====================
+# Dati e segnale
+# =====================
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0             # find_peaks, savgol_filter
+
+# =====================
+# Machine Learning
+# =====================
+scikit-learn>=1.3.0       # Random Forest, metriche di valutazione
+
+# =====================
+# Grafici e visualizzazione
+# =====================
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# =====================
+# Notebook
+# =====================
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# =====================
+# Utilità
+# =====================
+pyyaml>=6.0               # lettura config.yaml
+tqdm>=4.65.0              # barre di avanzamento
+
+# =====================
+# PyTorch con CUDA (solo Membro A con GPU)
+# =====================
+# Installare MANUALMENTE dal sito: https://pytorch.org/get-started/locally/
+# Esempio per CUDA 12.1:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# Per CPU (tutti gli altri):
+# pip install torch torchvision torchaudio

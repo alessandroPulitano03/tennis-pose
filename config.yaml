@@ -1,0 +1,68 @@
+# =====================================================================
+# config.yaml — Parametri centrali del progetto tennis-pose
+# Modifica qui i valori invece di toccare i singoli script
+# =====================================================================
+
+# --- Modello YOLO ---
+yolo:
+  model: "yolov8l-pose.pt"   # modello da usare (l = large, più preciso)
+  device: 0                   # 0 = prima GPU, "cpu" = CPU
+  conf: 0.3                   # soglia confidenza minima per le detection
+  iou: 0.5                    # soglia IoU per NMS
+
+# --- Keypoint COCO (indici) ---
+keypoints:
+  nose: 0
+  left_shoulder: 5
+  right_shoulder: 6
+  left_elbow: 7
+  right_elbow: 8
+  left_wrist: 9
+  right_wrist: 10             # polso dx — CHIAVE per rilevamento colpi
+  left_hip: 11
+  right_hip: 12
+  left_knee: 13
+  right_knee: 14
+  left_ankle: 15
+  right_ankle: 16
+
+# --- Preprocessing ---
+preprocessing:
+  conf_threshold: 0.35        # sotto questa soglia il keypoint diventa NaN
+  interp_max_gap: 10          # buchi ≤ N frame vengono interpolati linearmente
+  savgol_window: 9            # finestra filtro Savitzky-Golay (dispari)
+  savgol_poly: 2              # ordine polinomio Savitzky-Golay
+
+# --- Rilevamento colpi ---
+detection:
+  # Velocità del polso destro normalizzata sul busto (frame-differenza)
+  peak_height: 0.05           # velocità minima per considerare un picco
+  peak_distance_sec: 0.8      # distanza minima tra due colpi (in secondi)
+  # Tolleranza per confronto con annotazioni manuali (in frame)
+  tolerance_frames: 5
+
+# --- Classificazione ---
+classification:
+  # Finestra temporale attorno all'impatto per calcolare le feature
+  window_sec: 0.5             # ±0.5 secondi
+
+  # Soglie per regole if/else (Passo A)
+  rules:
+    # Polso sopra la testa → servizio o smash
+    wrist_above_head_threshold: -0.1   # in coordinate normalizzate
+    # Braccio sinistro alzato prima → lancio di palla → servizio
+    left_wrist_raise_threshold: 0.05
+    # Distanza tra i due polsi: piccola → rovescio a due mani
+    bimanual_dist_threshold: 0.3
+
+# --- Statistiche ---
+statistics:
+  fps: 25                     # fps del video (aggiornare per ogni clip!)
+  output_dir: "results/"
+
+# --- Video annotato ---
+render:
+  skeleton_color: [0, 255, 0]         # verde (BGR)
+  label_color: [255, 255, 255]        # bianco
+  font_scale: 1.2
+  thickness: 2
