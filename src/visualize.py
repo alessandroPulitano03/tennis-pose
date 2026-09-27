@@ -106,7 +106,7 @@ def plot_feature_boxplots(shots_df: pd.DataFrame, output_dir: str):
     tipo_col = "tipo_rf" if "tipo_rf" in shots_df.columns else "tipo_regole"
 
     feature_cols = [c for c in ["wrist_r_x", "wrist_r_y", "swing_direction",
-                                 "wrist_above_nose", "bimanual_dist"]
+                                 "wrist_above_shoulder", "bimanual_dist"]
                     if c in shots_df.columns]
     if not feature_cols:
         print("   ⚠️  Feature non presenti nel CSV — salto boxplot.")

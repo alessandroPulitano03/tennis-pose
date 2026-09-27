@@ -102,7 +102,7 @@ results/
 | 9 | Polso sx | **10** | **Polso dx** ← chiave rilevamento |
 | 11 | Anca sx | 12 | Anca dx |
 
-> **Nota su Sinner:** è mancino ma gioca il rovescio a due mani. La telecamera è da dietro, quindi la destra nell'immagine corrisponde alla destra reale — NON specchiare le regole.
+> **Nota su Sinner:** è destrorso ma gioca il rovescio a due mani. La telecamera è da dietro, quindi la destra nell'immagine corrisponde alla destra reale — NON specchiare le regole.
 
 ## Team
 

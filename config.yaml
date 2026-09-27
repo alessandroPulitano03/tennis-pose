@@ -36,7 +36,7 @@ preprocessing:
 # --- Rilevamento colpi ---
 detection:
   # Velocità del polso destro normalizzata sul busto (frame-differenza)
-  peak_height: 0.05           # velocità minima per considerare un picco
+  peak_height: 0.2           # velocità minima per considerare un picco
   peak_distance_sec: 0.8      # distanza minima tra due colpi (in secondi)
   # Tolleranza per confronto con annotazioni manuali (in frame)
   tolerance_frames: 5
@@ -48,16 +48,17 @@ classification:
 
   # Soglie per regole if/else (Passo A)
   rules:
-    # Polso sopra la testa → servizio o smash
-    wrist_above_head_threshold: -0.1   # in coordinate normalizzate
-    # Braccio sinistro alzato prima → lancio di palla → servizio
-    left_wrist_raise_threshold: 0.05
+    # Polso dx sopra le spalle → servizio o smash
+    # (in lunghezze di busto; nei dritti arriva al massimo a ~0.45)
+    wrist_above_shoulder_threshold: 0.8
+    # Polso sx sopra le spalle prima dell'impatto → lancio di palla → servizio
+    left_wrist_raise_threshold: 0.5
     # Distanza tra i due polsi: piccola → rovescio a due mani
     bimanual_dist_threshold: 0.3
 
 # --- Statistiche ---
 statistics:
-  fps: 25                     # fps del video (aggiornare per ogni clip!)
+  fps: 30                     # fps del video (aggiornare per ogni clip!)
   output_dir: "results/"
 
 # --- Video annotato ---

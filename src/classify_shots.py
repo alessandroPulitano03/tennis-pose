@@ -9,8 +9,9 @@ Due approcci:
 
 Feature calcolate nella finestra ±0.5s attorno all'impatto:
   - Posizione del polso dx rispetto al centro delle anche
+  - Lato della preparazione (polso dx a destra o a sinistra delle anche)
   - Direzione orizzontale del polso durante lo swing
-  - Altezza del polso rispetto al naso
+  - Altezza del polso rispetto alle spalle (il naso non è visibile da dietro)
   - Distanza tra i due polsi (indicatore rovescio a due mani)
   - Braccio sinistro alzato prima dell'impatto (lancio di palla → servizio)
 
@@ -54,34 +55,44 @@ def extract_features_for_shot(df: pd.DataFrame, impact_frame: int,
     row = df.loc[impact_idx[0]]
 
     features = {}
+    before = window[window["frame"] <= impact_frame]
+
+    # Altezza del centro spalle: da dietro il naso non si vede, quindi le
+    # spalle fanno da riferimento per "sopra la testa" (y cresce verso il basso)
+    shoulder_y = (window["kp5_y"] + window["kp6_y"]) / 2
 
     # 1. Posizione polso dx rispetto al centro delle anche
     features["wrist_r_x"] = row["kp10_x"]   # positivo = destra, negativo = sinistra
-    features["wrist_r_y"] = row["kp10_y"]   # negativo = sopra la testa
+    features["wrist_r_y"] = row["kp10_y"]   # negativo = sopra le anche
 
-    # 2. Direzione orizzontale dello swing (pendenza x del polso)
+    # 2. Lato della preparazione: posizione media del polso dx prima dell'impatto.
+    #    Destrorso visto da dietro: dritto preparato a destra (> 0),
+    #    rovescio preparato a sinistra (< 0)
+    features["prep_side"] = before["kp10_x"].mean()
+
+    # 3. Direzione orizzontale dello swing (pendenza x del polso)
     wrist_x = window["kp10_x"].dropna()
     if len(wrist_x) > 2:
         dx = wrist_x.iloc[-1] - wrist_x.iloc[0]
-        features["swing_direction"] = dx  # positivo = da sx a dx (dritto destrorso)
+        features["swing_direction"] = dx  # negativo = da dx a sx (dritto destrorso)
     else:
         features["swing_direction"] = np.nan
 
-    # 3. Altezza polso rispetto al naso (kp0)
-    features["wrist_above_nose"] = row["kp0_y"] - row["kp10_y"]   # positivo = polso sopra naso
+    # 4. Massima altezza del polso dx sopra le spalle nella finestra
+    features["wrist_above_shoulder"] = (shoulder_y - window["kp10_y"]).max()
 
-    # 4. Distanza tra i due polsi (indicatore rovescio a due mani)
+    # 5. Distanza tra i due polsi (indicatore rovescio a due mani)
     dist_x = row["kp10_x"] - row["kp9_x"]
     dist_y = row["kp10_y"] - row["kp9_y"]
     features["bimanual_dist"] = np.sqrt(dist_x ** 2 + dist_y ** 2)
 
-    # 5. Polso sinistro alzato prima dell'impatto (lancio di palla → servizio)
-    left_wrist_before = window[window["frame"] <= impact_frame]["kp9_y"]
-    features["left_wrist_raised"] = float(
-        left_wrist_before.min() < -0.5 if len(left_wrist_before) > 0 else False
-    )
+    # 6. Massima altezza del polso sx sopra le spalle prima dell'impatto
+    #    (lancio di palla → servizio)
+    features["left_wrist_above_shoulder"] = (
+        shoulder_y.loc[before.index] - before["kp9_y"]
+    ).max()
 
-    # 6. Larghezza spalle (si stringe quando il busto ruota)
+    # 7. Larghezza spalle (si stringe quando il busto ruota)
     features["shoulder_width"] = abs(row["kp5_x"] - row["kp6_x"])
 
     return features
@@ -94,10 +105,10 @@ def classify_rule_based(features: dict, config: dict) -> str:
     """
     cfg = config["classification"]["rules"]
 
-    # Regola 1: Polso molto sopra la testa → Servizio o Smash
-    if features.get("wrist_above_nose", 0) > abs(cfg["wrist_above_head_threshold"]):
+    # Regola 1: Polso molto sopra le spalle → Servizio o Smash
+    if features.get("wrist_above_shoulder", 0) > cfg["wrist_above_shoulder_threshold"]:
         # Braccio sinistro alzato prima → lancio di palla → Servizio
-        if features.get("left_wrist_raised", 0) > 0.5:
+        if features.get("left_wrist_above_shoulder", 0) > cfg["left_wrist_raise_threshold"]:
             return "servizio"
         else:
             return "smash"
@@ -106,8 +117,8 @@ def classify_rule_based(features: dict, config: dict) -> str:
     if features.get("bimanual_dist", 1.0) < cfg["bimanual_dist_threshold"]:
         return "rovescio"
 
-    # Regola 3: Swing da sinistra a destra → Dritto (per Sinner destrorso)
-    if features.get("swing_direction", 0) > 0:
+    # Regola 3: Preparazione a destra delle anche → Dritto (Sinner è destrorso)
+    if features.get("prep_side", 0) > 0:
         return "dritto"
     else:
         return "rovescio"
