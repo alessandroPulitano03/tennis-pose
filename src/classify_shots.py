@@ -16,10 +16,10 @@ Feature calcolate nella finestra ±0.5s attorno all'impatto:
   - Braccio sinistro alzato prima dell'impatto (lancio di palla → servizio)
 
 Uso:
-    python src/classify_shots.py --keypoints data/keypoints/clip1_clean.csv
-                                  --shots data/shots/clip1_shots.csv
-                                  --annotations data/annotations/clip1.csv
-                                  --output data/shots/clip1_classified.csv
+    python src/classify_shots.py --keypoints clips/clip1/keypoints_clean.csv
+                                  --shots clips/clip1/shots.csv
+                                  --annotations clips/clip1/annotations.csv
+                                  --output clips/clip1/classified.csv
 """
 
 import argparse
@@ -171,13 +171,13 @@ def classify_shots(keypoints_path: str, shots_path: str,
         annotations = pd.read_csv(annotations_path)  # colonne: frame, tipo
 
         # Merge colpi con le annotazioni più vicine
-        tolerance = config["detection"]["tolerance_frames"]
+        tolerance = round(config["detection"]["tolerance_sec"] * config["statistics"]["fps"])
         labels = []
         for _, shot_row in shots_df.iterrows():
             frame = int(shot_row["frame"])
-            close = annotations[abs(annotations["frame"] - frame) <= tolerance]
-            if len(close) > 0:
-                labels.append(close.iloc[0]["tipo"])
+            dist = abs(annotations["frame"] - frame)
+            if dist.min() <= tolerance:
+                labels.append(annotations.loc[dist.idxmin(), "tipo"])
             else:
                 labels.append(None)
 

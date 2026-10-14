@@ -10,9 +10,9 @@ Output:
   - Esempi di errori commentati
 
 Uso:
-    python src/evaluate.py --classified data/shots/clip1_classified.csv
-                           --annotations data/annotations/clip1.csv
-                           --output results/evaluation/
+    python src/evaluate.py --classified clips/clip1/classified.csv
+                           --annotations clips/clip1/annotations.csv
+                           --output clips/clip1/results/evaluation/
 """
 
 import argparse
@@ -96,7 +96,8 @@ def evaluate(classified_path: str, annotations_path: str,
     annotations = pd.read_csv(annotations_path)
 
     print("🔗 Confronto colpi rilevati con annotazioni manuali...")
-    matched = match_shots_to_annotations(classified, annotations, cfg["tolerance_frames"])
+    tolerance = round(cfg["tolerance_sec"] * config["statistics"]["fps"])
+    matched = match_shots_to_annotations(classified, annotations, tolerance)
 
     # Filtra solo i colpi con ground truth (escludi FP puri)
     matched_valid = matched[matched["true"].notna()].copy()

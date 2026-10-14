@@ -9,7 +9,7 @@ Pulisce e normalizza il CSV grezzo dei keypoint:
      pipeline indipendente dalla posizione del giocatore nel frame)
 
 Uso:
-    python src/preprocess.py --input data/keypoints/clip1.csv --output data/keypoints/clip1_clean.csv
+    python src/preprocess.py --input clips/clip1/keypoints.csv --output clips/clip1/keypoints_clean.csv
 """
 
 import argparse

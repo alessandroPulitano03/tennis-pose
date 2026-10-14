@@ -7,10 +7,10 @@ Genera il video annotato con:
   - Bounding box del giocatore
 
 Uso:
-    python src/render_video.py --video data/raw/clip1.mp4
-                                --keypoints data/keypoints/clip1_clean.csv
-                                --classified data/shots/clip1_classified.csv
-                                --output results/video/clip1_annotated.mp4
+    python src/render_video.py --video clips/clip1/video.mp4
+                                --keypoints clips/clip1/keypoints_clean.csv
+                                --classified clips/clip1/classified.csv
+                                --output clips/clip1/results/annotated.mp4
 """
 
 import argparse

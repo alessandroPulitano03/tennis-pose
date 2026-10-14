@@ -38,8 +38,11 @@ detection:
   # Velocità del polso destro normalizzata sul busto (frame-differenza)
   peak_height: 0.2           # velocità minima per considerare un picco
   peak_distance_sec: 0.8      # distanza minima tra due colpi (in secondi)
-  # Tolleranza per confronto con annotazioni manuali (in frame)
-  tolerance_frames: 5
+  # Tolleranza per confronto con annotazioni manuali (in secondi).
+  # Convertita in frame con statistics.fps (0.4s a 30fps = ±12 frame).
+  # Deve restare ≤ peak_distance_sec / 2, altrimenti un'annotazione
+  # potrebbe cadere vicino a due colpi rilevati diversi.
+  tolerance_sec: 0.4
 
 # --- Classificazione ---
 classification:
@@ -58,8 +61,7 @@ classification:
 
 # --- Statistiche ---
 statistics:
-  fps: 30                     # fps del video (aggiornare per ogni clip!)
-  output_dir: "results/"
+  fps: 30                     # usato solo lanciando gli script a mano: run_pipeline.py lo legge dal video
 
 # --- Video annotato ---
 render:

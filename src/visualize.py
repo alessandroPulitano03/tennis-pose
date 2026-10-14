@@ -8,9 +8,9 @@ Genera i grafici per la relazione finale:
   4. Linea temporale dei colpi
 
 Uso:
-    python src/visualize.py --keypoints data/keypoints/clip1_clean.csv
-                             --classified data/shots/clip1_classified.csv
-                             --output results/plots/
+    python src/visualize.py --keypoints clips/clip1/keypoints_clean.csv
+                             --classified clips/clip1/classified.csv
+                             --output clips/clip1/results/plots/
 """
 
 import argparse

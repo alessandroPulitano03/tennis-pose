@@ -1,16 +1,8 @@
 # =====================
 # Dati (troppo pesanti per GitHub)
 # =====================
-data/raw/
-data/keypoints/
-data/annotations/
-results/
-
-# Eccezione: tieni i file di esempio piccoli
-!data/raw/.gitkeep
-!data/keypoints/.gitkeep
-!data/annotations/.gitkeep
-!results/.gitkeep
+# Una cartella per video: video, keypoints, annotazioni e risultati
+clips/
 
 # =====================
 # Ambiente Python

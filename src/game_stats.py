@@ -1,5 +1,5 @@
 """
-statistics.py — [Membro C]
+game_stats.py — [Membro C]
 ============================
 Calcola statistiche di gioco dai colpi classificati e le salva in CSV/JSON.
 
@@ -10,8 +10,8 @@ Statistiche prodotte:
   - Percentuale dritto/rovescio
 
 Uso:
-    python src/statistics.py --classified data/shots/clip1_classified.csv
-                              --output results/statistics/
+    python src/game_stats.py --classified clips/clip1/classified.csv
+                              --output clips/clip1/results/statistics/
 """
 
 import argparse

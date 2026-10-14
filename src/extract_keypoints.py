@@ -5,7 +5,7 @@ Estrae i keypoint del corpo da un video usando YOLO-Pose + tracker ByteTrack.
 Richiede un PC con GPU NVIDIA.
 
 Uso:
-    python src/extract_keypoints.py --video data/raw/clip1.mp4 --output data/keypoints/clip1.csv
+    python src/extract_keypoints.py --video clips/clip1/video.mp4 --output clips/clip1/keypoints.csv
 
 Output CSV:
     frame, time_s, track_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2,

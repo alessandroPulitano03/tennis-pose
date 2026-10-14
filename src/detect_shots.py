@@ -11,9 +11,9 @@ Algoritmo:
   4. Confronta con le annotazioni manuali per calcolare precision/recall
 
 Uso:
-    python src/detect_shots.py --keypoints data/keypoints/clip1_clean.csv
-                               --annotations data/annotations/clip1.csv
-                               --output data/shots/clip1_shots.csv
+    python src/detect_shots.py --keypoints clips/clip1/keypoints_clean.csv
+                               --annotations clips/clip1/annotations.csv
+                               --output clips/clip1/shots.csv
 """
 
 import argparse
@@ -126,7 +126,7 @@ def detect_shots(keypoints_path: str, annotations_path: str,
         print(f"\n📊 Valutazione vs annotazioni: {annotations_path}")
         annotations = pd.read_csv(annotations_path)
         metrics = evaluate_detection(
-            peaks, annotations, cfg["tolerance_frames"]
+            peaks, annotations, round(cfg["tolerance_sec"] * fps)
         )
         print(f"   Rilevati: {metrics['n_detected']} | Annotati: {metrics['n_annotated']}")
         print(f"   TP={metrics['tp']} FP={metrics['fp']} FN={metrics['fn']}")
