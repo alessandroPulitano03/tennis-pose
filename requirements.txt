@@ -14,7 +14,7 @@ scipy>=1.11.0             # find_peaks, savgol_filter
 # =====================
 # Machine Learning
 # =====================
-scikit-learn>=1.3.0       # Random Forest, metriche di valutazione
+scikit-learn>=1.3.0       # metriche di valutazione
 
 # =====================
 # Grafici e visualizzazione

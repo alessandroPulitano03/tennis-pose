@@ -21,7 +21,7 @@ in una cartella dedicata: clips/<nome_clip>/
 
 Uno step viene rieseguito solo se il suo output manca o è più vecchio
 di uno dei suoi input (es. dopo aver aggiunto annotations.csv vengono
-rifatti classificazione, valutazione e output finali, ma non YOLO).
+rifatti rilevamento, valutazione e output finali, ma non YOLO).
 
 Uso:
     # Nuovo video: crea clips/<nome_file>/ e lancia tutto
@@ -159,8 +159,8 @@ def build_steps(clip_dir: str, video: str, config_path: str) -> list[dict]:
          "args": ["--keypoints", clean, "--output", shots] + ann_args,
          "inputs": [clean], "optional": [annotations], "output": shots},
         {"name": "classify", "script": "classify_shots.py",
-         "args": ["--keypoints", clean, "--shots", shots, "--output", classified] + ann_args,
-         "inputs": [clean, shots], "optional": [annotations], "output": classified},
+         "args": ["--keypoints", clean, "--shots", shots, "--output", classified],
+         "inputs": [clean, shots], "output": classified},
         {"name": "evaluate", "script": "evaluate.py",
          "args": ["--classified", classified, "--annotations", annotations,
                   "--output", p("results", "evaluation")],
@@ -234,7 +234,7 @@ def run_pipeline(clip_dir: str, base_config_path: str, from_step: str | None, fo
         print(f"\n📝 Manca {os.path.relpath(os.path.join(clip_dir, 'annotations.csv'), ROOT)}:"
               f" crealo guardando il video (colonne: frame,tipo) e rilancia con"
               f"\n   python src/run_pipeline.py --clip {clip_name}"
-              f"\n   per ottenere Random Forest e valutazione.")
+              f"\n   per ottenere la valutazione.")
 
 
 def main():

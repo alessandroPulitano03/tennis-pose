@@ -37,6 +37,7 @@ COLOR_MAP = {
     "rovescio": (50, 100, 255),   # rosso/viola
     "servizio": (50, 200, 50),    # verde
     "smash":    (50, 200, 255),   # giallo
+    "volee":    (200, 50, 160),   # viola
 }
 
 
@@ -82,7 +83,7 @@ def render_video(video_path: str, keypoints_path: str, classified_path: str,
 
     print(f"📂 Carico colpi classificati: {classified_path}")
     shots_df = pd.read_csv(classified_path)
-    tipo_col = "tipo_rf" if "tipo_rf" in shots_df.columns else "tipo_regole"
+    tipo_col = "tipo_regole"
 
     # Costruisci dizionario frame → tipo colpo
     label_duration_frames = int(video_fps * 1.5)  # mostra l'etichetta per 1.5 secondi

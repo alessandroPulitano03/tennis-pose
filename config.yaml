@@ -9,6 +9,16 @@ yolo:
   device: 0                   # 0 = prima GPU, "cpu" = CPU
   conf: 0.3                   # soglia confidenza minima per le detection
   iou: 0.5                    # soglia IoU per NMS
+  # Larghezza dell'immagine data in input a YOLO (default 640). Con video
+  # 1920x1080 a 640 il giocatore a rete è troppo piccolo e non viene rilevato
+  imgsz: 1280
+  # Giocatore non visto per più di N secondi (es. taglio nel video), oppure
+  # un'altra persona più grande per più di N secondi → si sceglie di nuovo la
+  # persona più grande. Deve restare più lungo di preprocessing.interp_max_gap
+  # (0.5s a 30fps = 15 frame > 10)
+  reselect_after_sec: 0.5
+  # Quante volte più grande (area del box) deve essere l'altra persona
+  switch_area_ratio: 1.5
 
 # --- Keypoint COCO (indici) ---
 keypoints:
@@ -51,13 +61,26 @@ classification:
 
   # Soglie per regole if/else (Passo A)
   rules:
-    # Polso dx sopra le spalle → servizio o smash
-    # (in lunghezze di busto; nei dritti arriva al massimo a ~0.45)
+    # Quanto i piedi sono più avanti (più in alto nell'immagine) della loro
+    # posizione tipica, in lunghezze di busto: sopra questa soglia il giocatore
+    # è vicino alla rete → colpo al volo (smash o volee).
+    # ~0 a fondo campo (servizi ≤ 0.6), smash a rete ≥ 1.7; calibrare col
+    # boxplot "feet_advance" in results/plots/
+    net_feet_advance_threshold: 1.0
+    # Polso dx sopra le spalle → servizio (da fondo) o smash (a rete)
+    # (in lunghezze di busto; nelle chiusure alte dei dritti arriva a ~0.95)
     wrist_above_shoulder_threshold: 0.8
     # Polso sx sopra le spalle prima dell'impatto → lancio di palla → servizio
+    # (servizi ≥ 1.0, dritti ≤ 0.3)
     left_wrist_raise_threshold: 0.5
+    # Ampiezza dello swing a rete: sotto la soglia → volee, sopra → colpo da
+    # fondo giocato vicino alla rete (volee ≤ 0.75, rovescio in corsa 1.26)
+    volley_swing_range_threshold: 1.0
     # Distanza tra i due polsi: piccola → rovescio a due mani
     bimanual_dist_threshold: 0.3
+    # Distanza tra i due polsi: grande → dritto (braccio sx aperto)
+    # (rovesci ≤ 1.22 anche a una mano, dritti fino a 2.1)
+    forehand_bimanual_dist_threshold: 1.5
 
 # --- Statistiche ---
 statistics:

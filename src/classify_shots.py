@@ -1,11 +1,8 @@
 """
 classify_shots.py — [Membro C]
 ================================
-Classifica ogni colpo rilevato in: dritto, rovescio o servizio.
-
-Due approcci:
-  Passo A — Regole if/else (trasparente, spiegabile all'esame)
-  Passo B — Random Forest (scikit-learn, confronto con le regole)
+Classifica ogni colpo rilevato in: dritto, rovescio, servizio, smash o volee
+con regole if/else (trasparenti, spiegabili all'esame).
 
 Feature calcolate nella finestra ±0.5s attorno all'impatto:
   - Posizione del polso dx rispetto al centro delle anche
@@ -14,11 +11,13 @@ Feature calcolate nella finestra ±0.5s attorno all'impatto:
   - Altezza del polso rispetto alle spalle (il naso non è visibile da dietro)
   - Distanza tra i due polsi (indicatore rovescio a due mani)
   - Braccio sinistro alzato prima dell'impatto (lancio di palla → servizio)
+  - Ampiezza dello swing (la volee è un colpo corto, quasi senza apertura)
+  - Vicinanza alla rete: altezza dei piedi nell'immagine rispetto al resto
+    della clip (i piedi poggiano sul campo: a rete salgono nell'immagine)
 
 Uso:
     python src/classify_shots.py --keypoints clips/clip1/keypoints_clean.csv
                                   --shots clips/clip1/shots.csv
-                                  --annotations clips/clip1/annotations.csv
                                   --output clips/clip1/classified.csv
 """
 
@@ -28,9 +27,6 @@ import os
 import numpy as np
 import pandas as pd
 import yaml
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
-from sklearn.preprocessing import LabelEncoder
 
 
 def load_config(config_path: str = "config.yaml") -> dict:
@@ -39,10 +35,11 @@ def load_config(config_path: str = "config.yaml") -> dict:
 
 
 def extract_features_for_shot(df: pd.DataFrame, impact_frame: int,
-                               window_frames: int) -> dict:
+                               window_frames: int, ref: dict) -> dict:
     """
     Estrae le feature cinematiche nella finestra ±window_frames attorno all'impatto.
     Tutte le coordinate sono già normalizzate sul busto (da preprocess.py).
+    ref contiene i valori tipici della clip in pixel (busto, altezza caviglie).
     """
     start = max(0, impact_frame - window_frames)
     end = min(len(df) - 1, impact_frame + window_frames)
@@ -92,8 +89,24 @@ def extract_features_for_shot(df: pd.DataFrame, impact_frame: int,
         shoulder_y.loc[before.index] - before["kp9_y"]
     ).max()
 
-    # 7. Larghezza spalle (si stringe quando il busto ruota)
+    # 7. Vicinanza alla rete. La telecamera è fissa dietro il giocatore e i
+    #    piedi poggiano sul piano del campo: più il giocatore avanza verso la
+    #    rete, più i piedi salgono nell'immagine (indipendentemente dalla
+    #    postura). Si misura quanto le caviglie sono più in alto della loro
+    #    posizione tipica nella clip, in lunghezze di busto tipiche.
+    #    Si usa il punto più basso nella finestra, così il salto del servizio
+    #    o dello smash non conta. ~0 = fondo campo, valori grandi = a rete.
+    ankle_y_px = ((window["kp15_y"] + window["kp16_y"]) / 2
+                  * window["torso_len_px"] + window["hip_cy_px"])
+    features["feet_advance"] = (ref["ankle_y_px"] - ankle_y_px.max()) / ref["torso_len_px"]
+
+    # 8. Larghezza spalle (si stringe quando il busto ruota)
     features["shoulder_width"] = abs(row["kp5_x"] - row["kp6_x"])
+
+    # 9. Ampiezza dello swing: escursione orizzontale del polso dx prima
+    #    dell'impatto. La volee è un colpo "bloccato", quasi senza apertura;
+    #    dritto e rovescio (anche giocati vicino alla rete) hanno uno swing ampio
+    features["swing_range"] = before["kp10_x"].max() - before["kp10_x"].min()
 
     return features
 
@@ -104,20 +117,36 @@ def classify_rule_based(features: dict, config: dict) -> str:
     Basate sulle misure del piano di lavoro.
     """
     cfg = config["classification"]["rules"]
+    wrist_high = features.get("wrist_above_shoulder", 0) > cfg["wrist_above_shoulder_threshold"]
 
-    # Regola 1: Polso molto sopra le spalle → Servizio o Smash
-    if features.get("wrist_above_shoulder", 0) > cfg["wrist_above_shoulder_threshold"]:
-        # Braccio sinistro alzato prima → lancio di palla → Servizio
-        if features.get("left_wrist_above_shoulder", 0) > cfg["left_wrist_raise_threshold"]:
-            return "servizio"
-        else:
+    # Regola 1: Giocatore vicino alla rete
+    if features.get("feet_advance", 0) > cfg["net_feet_advance_threshold"]:
+        # Polso sopra le spalle → Smash
+        if wrist_high:
             return "smash"
+        # Swing corto → Volee. Con uno swing ampio è un colpo da fondo giocato
+        # vicino alla rete (es. recupero di una palla corta): regole successive
+        if features.get("swing_range", 0) < cfg["volley_swing_range_threshold"]:
+            return "volee"
 
-    # Regola 2: Entrambi i polsi vicini → Rovescio a due mani
+    # Regola 2: Da fondo campo, polso sopra le spalle e braccio sinistro
+    # alzato prima (lancio di palla) → Servizio. Senza lancio è la chiusura
+    # alta di un dritto, che prosegue nelle regole successive.
+    if wrist_high and features.get("left_wrist_above_shoulder", 0) > cfg["left_wrist_raise_threshold"]:
+        return "servizio"
+
+    # Regola 3: Polsi molto distanti → Dritto. Nel dritto il braccio sinistro
+    # si apre per equilibrio; nel rovescio la mano sx impugna la racchetta (a
+    # due mani) o resta vicina al corpo (a una mano). Utile quando il lato
+    # della preparazione è ambiguo (es. dritto colpito arretrando)
+    if features.get("bimanual_dist", 0) > cfg["forehand_bimanual_dist_threshold"]:
+        return "dritto"
+
+    # Regola 4: Entrambi i polsi vicini → Rovescio a due mani
     if features.get("bimanual_dist", 1.0) < cfg["bimanual_dist_threshold"]:
         return "rovescio"
 
-    # Regola 3: Preparazione a destra delle anche → Dritto (Sinner è destrorso)
+    # Regola 5: Preparazione a destra delle anche → Dritto (Sinner è destrorso)
     if features.get("prep_side", 0) > 0:
         return "dritto"
     else:
@@ -130,13 +159,19 @@ def build_feature_matrix(df_kp: pd.DataFrame, shots_df: pd.DataFrame,
     fps = config["statistics"]["fps"]
     window_sec = config["classification"]["window_sec"]
     window_frames = int(window_sec * fps)
+    # Valori tipici in pixel: la mediana sulla clip rappresenta il giocatore a
+    # fondo campo, dove passa la maggior parte del tempo
+    ankle_y_px = ((df_kp["kp15_y"] + df_kp["kp16_y"]) / 2
+                  * df_kp["torso_len_px"] + df_kp["hip_cy_px"])
+    ref = {"torso_len_px": df_kp["torso_len_px"].median(),
+           "ankle_y_px": ankle_y_px.median()}
 
     rows = []
     valid_indices = []
 
     for idx, shot_row in shots_df.iterrows():
         frame = int(shot_row["frame"])
-        feats = extract_features_for_shot(df_kp, frame, window_frames)
+        feats = extract_features_for_shot(df_kp, frame, window_frames, ref)
         if feats is not None:
             rows.append(feats)
             valid_indices.append(idx)
@@ -144,8 +179,7 @@ def build_feature_matrix(df_kp: pd.DataFrame, shots_df: pd.DataFrame,
     return pd.DataFrame(rows), valid_indices
 
 
-def classify_shots(keypoints_path: str, shots_path: str,
-                   annotations_path: str, output_path: str, config: dict):
+def classify_shots(keypoints_path: str, shots_path: str, output_path: str, config: dict):
 
     print(f"📂 Carico keypoints: {keypoints_path}")
     df_kp = pd.read_csv(keypoints_path)
@@ -157,51 +191,15 @@ def classify_shots(keypoints_path: str, shots_path: str,
     feature_matrix, valid_indices = build_feature_matrix(df_kp, shots_df, config)
     shots_df = shots_df.loc[valid_indices].reset_index(drop=True)
 
-    # ── Passo A: Regole if/else ──────────────────────────────────────
-    print("\n📏 Passo A — Classificazione con regole if/else...")
+    print("\n📏 Classificazione con regole if/else...")
     shots_df["tipo_regole"] = [
         classify_rule_based(row.to_dict(), config)
         for _, row in feature_matrix.iterrows()
     ]
     print(shots_df["tipo_regole"].value_counts().to_string())
 
-    # ── Passo B: Random Forest (solo se le annotazioni esistono) ──────
-    if annotations_path and os.path.exists(annotations_path):
-        print("\n🌲 Passo B — Random Forest con scikit-learn...")
-        annotations = pd.read_csv(annotations_path)  # colonne: frame, tipo
-
-        # Merge colpi con le annotazioni più vicine
-        tolerance = round(config["detection"]["tolerance_sec"] * config["statistics"]["fps"])
-        labels = []
-        for _, shot_row in shots_df.iterrows():
-            frame = int(shot_row["frame"])
-            dist = abs(annotations["frame"] - frame)
-            if dist.min() <= tolerance:
-                labels.append(annotations.loc[dist.idxmin(), "tipo"])
-            else:
-                labels.append(None)
-
-        shots_df["tipo_annotato"] = labels
-        mask = shots_df["tipo_annotato"].notna()
-        print(f"   Colpi con etichetta: {mask.sum()} / {len(shots_df)}")
-
-        if mask.sum() >= 10:
-            X = feature_matrix[mask].fillna(0)
-            y = shots_df.loc[mask, "tipo_annotato"]
-
-            le = LabelEncoder()
-            y_enc = le.fit_transform(y)
-
-            clf = RandomForestClassifier(n_estimators=100, random_state=42)
-            scores = cross_val_score(clf, X, y_enc, cv=3, scoring="accuracy")
-            print(f"   Accuracy CV (3-fold): {scores.mean():.3f} ± {scores.std():.3f}")
-
-            clf.fit(X, y_enc)
-            shots_df["tipo_rf"] = le.inverse_transform(clf.predict(feature_matrix.fillna(0)))
-        else:
-            print("   ⚠️  Troppi pochi colpi annotati per il training — salto il RF.")
-    else:
-        print("ℹ️  Nessun file di annotazione — salto il Passo B (RF).")
+    # Salva anche le feature: servono per i boxplot e per calibrare le soglie
+    shots_df = pd.concat([shots_df, feature_matrix], axis=1)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     shots_df.to_csv(output_path, index=False)
@@ -209,16 +207,15 @@ def classify_shots(keypoints_path: str, shots_path: str,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Classifica i colpi in dritto/rovescio/servizio")
+    parser = argparse.ArgumentParser(description="Classifica i colpi in dritto/rovescio/servizio/smash/volee")
     parser.add_argument("--keypoints", required=True, help="CSV keypoints pulito")
     parser.add_argument("--shots", required=True, help="CSV colpi rilevati")
-    parser.add_argument("--annotations", default=None, help="CSV annotazioni manuali (per RF)")
     parser.add_argument("--output", required=True, help="CSV colpi classificati")
     parser.add_argument("--config", default="config.yaml")
     args = parser.parse_args()
 
     config = load_config(args.config)
-    classify_shots(args.keypoints, args.shots, args.annotations, args.output, config)
+    classify_shots(args.keypoints, args.shots, args.output, config)
 
 
 if __name__ == "__main__":

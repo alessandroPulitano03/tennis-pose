@@ -38,6 +38,8 @@ def compute_wrist_speed(df: pd.DataFrame) -> pd.Series:
     vx = df["kp10_x"].diff()
     vy = df["kp10_y"].diff()
     speed = np.sqrt(vx ** 2 + vy ** 2)
+    # Al cambio di giocatore (track_id) lo spostamento non è un movimento reale
+    speed[df["track_id"] != df["track_id"].shift()] = np.nan
     return speed
 
 

@@ -6,8 +6,8 @@ Progetto di **Image Processing** — Analisi automatica dei colpi di tennis da v
 
 Il sistema analizza video di Sinner (ripresa da dietro) per:
 - Estrarre 17 keypoint del corpo per ogni frame tramite **YOLO-Pose**
-- Rilevare automaticamente i colpi (dritto, rovescio, servizio)
-- Classificarli con regole if/else o Random Forest
+- Rilevare automaticamente i colpi
+- Classificarli (dritto, rovescio, servizio, smash, volee) con regole if/else
 - Produrre statistiche, grafici e video annotato
 
 ## Struttura del progetto
@@ -97,7 +97,7 @@ Tutti i file stanno in `clips/<nome_clip>/`. Non serve lanciare gli script uno p
 python src/run_pipeline.py --video C:/percorso/alcaraz_servizi.mp4
 ```
 Crea `clips/alcaraz_servizi/`, ci copia il video, legge gli fps dal video ed esegue tutti gli step.
-Senza `annotations.csv` vengono saltate la Random Forest e la valutazione.
+Senza `annotations.csv` viene saltata la valutazione.
 
 ### Aggiungere le annotazioni
 Crea `clips/<nome_clip>/annotations.csv` guardando il video (colonne `frame,tipo`), poi:
@@ -135,13 +135,3 @@ Per cambiare un parametro **solo per una clip**, scrivilo in `clips/<nome_clip>/
 | 7 | Gomito sx | 8 | Gomito dx |
 | 9 | Polso sx | **10** | **Polso dx** ← chiave rilevamento |
 | 11 | Anca sx | 12 | Anca dx |
-
-> **Nota su Sinner:** è destrorso ma gioca il rovescio a due mani. La telecamera è da dietro, quindi la destra nell'immagine corrisponde alla destra reale — NON specchiare le regole.
-
-## Team
-
-| Membro | Ruolo | Fasi |
-|--------|-------|------|
-| A (GPU) | Infrastruttura, Estrazione keypoints, Preprocessing | 0, 2, 3 |
-| B | Annotazione manuale, Rilevamento colpi | 1, 4 |
-| C | Classificazione, Valutazione, Output finale | 5, 6, 7 |

@@ -42,7 +42,7 @@ def match_shots_to_annotations(classified: pd.DataFrame,
 
     for _, row in classified.iterrows():
         frame = int(row["frame"])
-        pred = row.get("tipo_rf", row.get("tipo_regole", "sconosciuto"))
+        pred = row.get("tipo_regole", "sconosciuto")
 
         best_gt = None
         best_dist = tolerance + 1

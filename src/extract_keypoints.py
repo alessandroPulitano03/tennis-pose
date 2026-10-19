@@ -37,25 +37,27 @@ def build_csv_header() -> list[str]:
     return base + kp_cols
 
 
-def choose_player_track(results) -> int | None:
-    """
-    Restituisce il track_id del giocatore Sinner: la persona con il
-    bounding box più grande e più in basso nell'immagine (esclude
-    avversario, raccattapalle e giudici).
-    """
-    best_id = None
-    best_area = 0
-
-    for box in results.boxes:
+def tracked_boxes(results) -> dict[int, tuple[int, float]]:
+    """Persone tracciate nel frame: track_id → (indice nel risultato, area del box)."""
+    boxes = {}
+    if results.boxes.id is None:
+        return boxes
+    for i, box in enumerate(results.boxes):
         if box.id is None:
             continue
         x1, y1, x2, y2 = box.xyxy[0].tolist()
-        area = (x2 - x1) * (y2 - y1)
-        if area > best_area:
-            best_area = area
-            best_id = int(box.id.item())
+        boxes[int(box.id.item())] = (i, (x2 - x1) * (y2 - y1))
+    return boxes
 
-    return best_id
+
+def choose_player_track(boxes: dict[int, tuple[int, float]]) -> int | None:
+    """
+    Restituisce il track_id del giocatore vicino alla telecamera: la persona
+    con il bounding box più grande (esclude avversario, raccattapalle e giudici).
+    """
+    if not boxes:
+        return None
+    return max(boxes, key=lambda tid: boxes[tid][1])
 
 
 def extract_keypoints(video_path: str, output_path: str, config: dict):
@@ -76,10 +78,22 @@ def extract_keypoints(video_path: str, output_path: str, config: dict):
         device=cfg_yolo["device"],
         conf=cfg_yolo["conf"],
         iou=cfg_yolo["iou"],
+        imgsz=cfg_yolo["imgsz"],
     )
 
     header = build_csv_header()
     player_track_id = None  # Sarà determinato al primo frame
+    # Il giocatore viene scelto di nuovo (taglio nel video, cambio di campo,
+    # tracker che gli assegna un nuovo ID, persona sbagliata scelta mentre il
+    # giocatore era fuori inquadratura) se per più di reselect_after frame:
+    #   - non viene più rilevato, oppure
+    #   - un'altra persona ha un box più grande di switch_area_ratio volte.
+    # reselect_after deve restare > preprocessing.interp_max_gap, così il buco
+    # di NaN di un giocatore perso non viene riempito interpolando col successivo.
+    reselect_after = round(cfg_yolo["reselect_after_sec"] * fps)
+    switch_ratio = cfg_yolo["switch_area_ratio"]
+    missing_frames = 0
+    bigger_frames = 0
 
     with open(output_path, "w", newline="") as f:
         writer = csv.writer(f)
@@ -87,33 +101,50 @@ def extract_keypoints(video_path: str, output_path: str, config: dict):
 
         for frame_idx, result in enumerate(results_gen):
             time_s = round(frame_idx / fps, 4)
+            boxes = tracked_boxes(result)
 
-            # Determina il track_id del giocatore al primo frame
-            if player_track_id is None and result.boxes.id is not None:
-                player_track_id = choose_player_track(result)
+            if player_track_id is not None and missing_frames >= reselect_after:
+                print(f"[Frame {frame_idx}] Giocatore track_id={player_track_id} perso"
+                      f" da {missing_frames} frame → nuova selezione")
+                player_track_id = None
+
+            # Un'altra persona molto più grande di quella seguita → è lei il giocatore
+            if player_track_id in boxes:
+                largest_id = choose_player_track(boxes)
+                if boxes[largest_id][1] > switch_ratio * boxes[player_track_id][1]:
+                    bigger_frames += 1
+                else:
+                    bigger_frames = 0
+                if bigger_frames >= reselect_after:
+                    print(f"[Frame {frame_idx}] track_id={largest_id} più grande di"
+                          f" track_id={player_track_id} da {bigger_frames} frame → cambio giocatore")
+                    player_track_id = largest_id
+                    bigger_frames = 0
+
+            # Determina il track_id del giocatore (al primo frame o dopo averlo perso)
+            if player_track_id is None and boxes:
+                player_track_id = choose_player_track(boxes)
+                missing_frames = 0
+                bigger_frames = 0
                 print(f"[Frame {frame_idx}] Giocatore selezionato: track_id={player_track_id}")
 
-            # Trova il box corrispondente al giocatore
+            # Box corrispondente al giocatore
             row_data = None
-            if result.boxes.id is not None:
-                for i, box in enumerate(result.boxes):
-                    if box.id is None:
-                        continue
-                    tid = int(box.id.item())
-                    if tid == player_track_id:
-                        x1, y1, x2, y2 = box.xyxy[0].tolist()
+            if player_track_id in boxes:
+                i = boxes[player_track_id][0]
+                x1, y1, x2, y2 = result.boxes[i].xyxy[0].tolist()
 
-                        # Estrai i 17 keypoint (x, y, conf)
-                        kps = result.keypoints.data[i].cpu().numpy()  # (17, 3)
-                        kp_flat = kps.flatten().tolist()
+                # Estrai i 17 keypoint (x, y, conf)
+                kps = result.keypoints.data[i].cpu().numpy()  # (17, 3)
+                kp_flat = kps.flatten().tolist()
 
-                        row_data = [frame_idx, time_s, tid,
-                                    round(x1, 1), round(y1, 1),
-                                    round(x2, 1), round(y2, 1)] + \
-                                   [round(v, 4) for v in kp_flat]
-                        break
+                row_data = [frame_idx, time_s, player_track_id,
+                            round(x1, 1), round(y1, 1),
+                            round(x2, 1), round(y2, 1)] + \
+                           [round(v, 4) for v in kp_flat]
 
             # Se il giocatore non è rilevato in questo frame → riga con NaN
+            missing_frames = 0 if row_data is not None else missing_frames + 1
             if row_data is None:
                 nan_row = [frame_idx, time_s,
                            player_track_id if player_track_id else -1,

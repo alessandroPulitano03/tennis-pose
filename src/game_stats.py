@@ -31,9 +31,7 @@ def compute_statistics(classified_path: str, output_dir: str, config: dict):
     print(f"📂 Carico: {classified_path}")
     df = pd.read_csv(classified_path)
 
-    # Usa tipo_rf se disponibile, altrimenti tipo_regole
-    tipo_col = "tipo_rf" if "tipo_rf" in df.columns else "tipo_regole"
-    df["tipo"] = df[tipo_col]
+    df["tipo"] = df["tipo_regole"]
 
     # Durata totale del clip
     durata_s = df["time_s"].max() - df["time_s"].min()

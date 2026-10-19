@@ -52,26 +52,36 @@ def interpolate_gaps(df: pd.DataFrame, max_gap: int, kp_cols: dict) -> pd.DataFr
         coord_cols += [col_x, col_y]
 
     for col in coord_cols:
-        df[col] = df[col].interpolate(
-            method="linear",
-            limit=max_gap,
-            limit_direction="both"
-        )
+        # Lunghezza del buco di NaN a cui appartiene ogni frame: i buchi più
+        # lunghi restano NaN (con limit= pandas riempirebbe anche i primi
+        # frame di un buco lungo, unendo per esempio due giocatori diversi)
+        missing = df[col].isna()
+        gap_id = (~missing).cumsum()
+        gap_len = missing.groupby(gap_id).transform("sum")
+        filled = df[col].interpolate(method="linear", limit_area="inside")
+        df[col] = filled.where(~missing | (gap_len <= max_gap))
     return df
 
 
 def apply_savgol(df: pd.DataFrame, window: int, poly: int, kp_cols: dict) -> pd.DataFrame:
-    """Applica il filtro Savitzky-Golay su x e y di ogni keypoint."""
+    """
+    Applica il filtro Savitzky-Golay su x e y di ogni keypoint, separatamente
+    su ogni tratto continuo senza NaN e con lo stesso giocatore (non si filtra
+    a cavallo di un buco o di un cambio di track_id).
+    """
     df = df.copy()
+    new_track = df["track_id"] != df["track_id"].shift()
     for i, (col_x, col_y, col_conf) in kp_cols.items():
         for col in [col_x, col_y]:
             valid = df[col].notna()
-            if valid.sum() > window:
-                df.loc[valid, col] = savgol_filter(
-                    df.loc[valid, col].values,
-                    window_length=window,
-                    polyorder=poly
-                )
+            run_id = ((valid != valid.shift()) | new_track).cumsum()
+            for _, run in df.loc[valid, col].groupby(run_id[valid]):
+                if len(run) > window:
+                    df.loc[run.index, col] = savgol_filter(
+                        run.values,
+                        window_length=window,
+                        polyorder=poly
+                    )
     return df
 
 

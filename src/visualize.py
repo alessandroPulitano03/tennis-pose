@@ -36,6 +36,7 @@ COLOR_MAP = {
     "rovescio": "#F44336",
     "servizio": "#4CAF50",
     "smash": "#FF9800",
+    "volee": "#9C27B0",
 }
 
 
@@ -49,7 +50,7 @@ def plot_wrist_speed(df_kp: pd.DataFrame, shots_df: pd.DataFrame,
     """Velocità del polso destro nel tempo con i colpi evidenziati."""
     speed = np.sqrt(df_kp["kp10_x"].diff() ** 2 + df_kp["kp10_y"].diff() ** 2)
 
-    tipo_col = "tipo_rf" if "tipo_rf" in shots_df.columns else "tipo_regole"
+    tipo_col = "tipo_regole"
 
     fig, ax = plt.subplots(figsize=(14, 4))
     ax.plot(df_kp["time_s"], speed, color="gray", linewidth=0.8, label="Velocità polso dx")
@@ -76,7 +77,7 @@ def plot_wrist_speed(df_kp: pd.DataFrame, shots_df: pd.DataFrame,
 
 def plot_shot_distribution(shots_df: pd.DataFrame, output_dir: str):
     """Distribuzione dei tipi di colpo: torta + barre."""
-    tipo_col = "tipo_rf" if "tipo_rf" in shots_df.columns else "tipo_regole"
+    tipo_col = "tipo_regole"
     counts = shots_df[tipo_col].value_counts()
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -103,10 +104,11 @@ def plot_shot_distribution(shots_df: pd.DataFrame, output_dir: str):
 
 def plot_feature_boxplots(shots_df: pd.DataFrame, output_dir: str):
     """Boxplot delle feature cinematiche per tipo di colpo."""
-    tipo_col = "tipo_rf" if "tipo_rf" in shots_df.columns else "tipo_regole"
+    tipo_col = "tipo_regole"
 
     feature_cols = [c for c in ["wrist_r_x", "wrist_r_y", "swing_direction",
-                                 "wrist_above_shoulder", "bimanual_dist"]
+                                 "wrist_above_shoulder", "bimanual_dist",
+                                 "left_wrist_above_shoulder", "feet_advance", "swing_range"]
                     if c in shots_df.columns]
     if not feature_cols:
         print("   ⚠️  Feature non presenti nel CSV — salto boxplot.")
@@ -122,7 +124,9 @@ def plot_feature_boxplots(shots_df: pd.DataFrame, output_dir: str):
         labels = list(shots_df[tipo_col].unique())
         colors = [COLOR_MAP.get(t, "gray") for t in labels]
 
-        bp = ax.boxplot(data, labels=labels, patch_artist=True)
+        bp = ax.boxplot(data, patch_artist=True)
+        # Etichette impostate a parte: "labels=" non esiste più da matplotlib 3.11
+        ax.set_xticks(range(1, len(labels) + 1), labels)
         for patch, color in zip(bp["boxes"], colors):
             patch.set_facecolor(color)
             patch.set_alpha(0.7)
@@ -138,7 +142,7 @@ def plot_feature_boxplots(shots_df: pd.DataFrame, output_dir: str):
 
 def plot_timeline(shots_df: pd.DataFrame, output_dir: str):
     """Linea temporale dei colpi."""
-    tipo_col = "tipo_rf" if "tipo_rf" in shots_df.columns else "tipo_regole"
+    tipo_col = "tipo_regole"
 
     fig, ax = plt.subplots(figsize=(14, 2))
     for _, row in shots_df.iterrows():
