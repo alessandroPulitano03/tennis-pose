@@ -5,9 +5,9 @@ Valuta le prestazioni della classificazione dei colpi confrontando
 i risultati con le annotazioni manuali (ground truth).
 
 Output:
-  - Matrice di confusione (plot + testo)
-  - Precision, Recall, F1 per tipo di colpo
-  - Esempi di errori commentati
+  - classification_report.txt: colpi trovati, mancati e falsi, precisione
+    e recall per tipo di colpo, elenco degli errori
+  - errors.csv: colpi classificati male
 
 Uso:
     python src/evaluate.py --classified clips/clip1/classified.csv
@@ -18,11 +18,9 @@ Uso:
 import argparse
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 
 
 def load_config(config_path: str = "config.yaml") -> dict:
@@ -70,19 +68,53 @@ def match_shots_to_annotations(classified: pd.DataFrame,
     return pd.DataFrame(results)
 
 
-def plot_confusion_matrix(y_true, y_pred, labels, output_dir: str):
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+def build_report(matched: pd.DataFrame, n_annotated: int, tolerance_sec: float,
+                 clip_name: str) -> str:
+    """Report testuale in italiano: rilevamento, classificazione per tipo ed errori."""
+    valid = matched[matched["true"].notna()]
+    n_found = len(valid)
+    n_false = len(matched) - n_found
+    n_missed = n_annotated - n_found
+    n_correct = int((valid["true"] == valid["pred"]).sum())
+    pct = lambda num, den: f"{num / den * 100:.1f}%" if den else "-"
 
-    fig, ax = plt.subplots(figsize=(7, 6))
-    disp.plot(ax=ax, cmap="Blues", colorbar=False)
-    ax.set_title("Matrice di Confusione — Classificazione Colpi")
-    plt.tight_layout()
+    title = f"VALUTAZIONE DEI COLPI - clip {clip_name}"
+    lines = [title, "=" * len(title), "",
+             f"1) RILEVAMENTO (un colpo è trovato se cade entro ±{tolerance_sec}s da quello annotato)",
+             "",
+             f"   Colpi annotati a mano ............ {n_annotated}",
+             f"   Colpi rilevati dal sistema ....... {len(matched)}",
+             f"   Trovati correttamente ............ {n_found}  ({pct(n_found, n_annotated)} degli annotati)",
+             f"   Mancati (non rilevati) ........... {n_missed}",
+             f"   Falsi colpi (rilevati in più) .... {n_false}",
+             "",
+             "2) CLASSIFICAZIONE (solo sui colpi trovati correttamente)",
+             "",
+             f"   Tipo giusto: {n_correct} su {n_found}  ({pct(n_correct, n_found)})",
+             ""]
 
-    path = os.path.join(output_dir, "confusion_matrix.png")
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"   📊 Matrice di confusione salvata: {path}")
+    header = f"   {'Tipo':<10}{'Annotati':>10}{'Predetti':>10}{'Corretti':>10}{'Precisione':>12}{'Recall':>9}"
+    lines += [header, "   " + "-" * (len(header) - 3)]
+    for tipo in sorted(set(valid["true"]) | set(valid["pred"])):
+        n_true = int((valid["true"] == tipo).sum())
+        n_pred = int((valid["pred"] == tipo).sum())
+        ok = int(((valid["true"] == tipo) & (valid["pred"] == tipo)).sum())
+        lines.append(f"   {tipo:<10}{n_true:>10}{n_pred:>10}{ok:>10}"
+                     f"{pct(ok, n_pred):>12}{pct(ok, n_true):>9}")
+    lines += ["",
+              "   Annotati   = colpi di quel tipo secondo le annotazioni",
+              "   Predetti   = colpi a cui il sistema ha dato quel tipo",
+              "   Precisione = quando il sistema dice quel tipo, quante volte ha ragione (Corretti / Predetti)",
+              "   Recall     = dei colpi veri di quel tipo, quanti vengono riconosciuti (Corretti / Annotati)",
+              ""]
+
+    errors = valid[valid["true"] != valid["pred"]]
+    lines.append(f"3) ERRORI DI CLASSIFICAZIONE: {len(errors)}")
+    if len(errors):
+        lines += ["", f"   {'Frame':>7}{'Tempo (s)':>11}   {'Vero':<10}{'Predetto':<10}"]
+        for _, row in errors.iterrows():
+            lines.append(f"   {int(row['frame']):>7}{row['time_s']:>11.2f}   {row['true']:<10}{row['pred']:<10}")
+    return "\n".join(lines) + "\n"
 
 
 def evaluate(classified_path: str, annotations_path: str,
@@ -107,32 +139,22 @@ def evaluate(classified_path: str, annotations_path: str,
         print("❌ Nessun colpo matchato — verifica i file di input.")
         return
 
-    labels = sorted(matched_valid["true"].unique())
-    y_true = matched_valid["true"].tolist()
-    y_pred = matched_valid["pred"].tolist()
-
-    print("\n📊 Report di classificazione:")
-    report = classification_report(y_true, y_pred, labels=labels, zero_division=0)
-    print(report)
+    clip_name = os.path.basename(os.path.dirname(os.path.abspath(classified_path)))
+    report = build_report(matched, len(annotations), cfg["tolerance_sec"], clip_name)
+    print("\n" + report)
 
     os.makedirs(output_dir, exist_ok=True)
-
-    # Salva il report testuale
-    with open(os.path.join(output_dir, "classification_report.txt"), "w") as f:
+    with open(os.path.join(output_dir, "classification_report.txt"), "w", encoding="utf-8") as f:
         f.write(report)
-
-    # Plot matrice di confusione
-    plot_confusion_matrix(y_true, y_pred, labels, output_dir)
 
     # Salva esempi di errori
     errors = matched_valid[matched_valid["true"] != matched_valid["pred"]]
+    error_path = os.path.join(output_dir, "errors.csv")
     if len(errors) > 0:
-        error_path = os.path.join(output_dir, "errors.csv")
         errors.to_csv(error_path, index=False)
-        print(f"\n⚠️  Errori trovati: {len(errors)} — salvati in: {error_path}")
-        print(errors[["frame", "time_s", "true", "pred"]].head(10).to_string(index=False))
-    else:
-        print("\n✅ Nessun errore di classificazione trovato!")
+        print(f"⚠️  Errori salvati in: {error_path}")
+    elif os.path.exists(error_path):
+        os.remove(error_path)  # errori di un'esecuzione precedente
 
     print(f"\n✅ Valutazione completata. Output in: {output_dir}")
 

@@ -14,6 +14,8 @@ Feature calcolate nella finestra ±0.5s attorno all'impatto:
   - Ampiezza dello swing (la volee è un colpo corto, quasi senza apertura)
   - Vicinanza alla rete: altezza dei piedi nell'immagine rispetto al resto
     della clip (i piedi poggiano sul campo: a rete salgono nell'immagine)
+  - Frazione della preparazione con i polsi vicini (usata da game_stats.py
+    per contare i rovesci a una e a due mani)
 
 Uso:
     python src/classify_shots.py --keypoints clips/clip1/keypoints_clean.csv
@@ -35,11 +37,13 @@ def load_config(config_path: str = "config.yaml") -> dict:
 
 
 def extract_features_for_shot(df: pd.DataFrame, impact_frame: int,
-                               window_frames: int, ref: dict) -> dict:
+                               window_frames: int, ref: dict,
+                               two_hands_dist: float) -> dict:
     """
     Estrae le feature cinematiche nella finestra ±window_frames attorno all'impatto.
     Tutte le coordinate sono già normalizzate sul busto (da preprocess.py).
     ref contiene i valori tipici della clip in pixel (busto, altezza caviglie).
+    two_hands_dist: distanza tra i polsi sotto cui le mani sono "insieme".
     """
     start = max(0, impact_frame - window_frames)
     end = min(len(df) - 1, impact_frame + window_frames)
@@ -108,6 +112,14 @@ def extract_features_for_shot(df: pd.DataFrame, impact_frame: int,
     #    dritto e rovescio (anche giocati vicino alla rete) hanno uno swing ampio
     features["swing_range"] = before["kp10_x"].max() - before["kp10_x"].min()
 
+    # 10. Frazione della preparazione con i polsi vicini (rovescio a due mani).
+    #     Più affidabile della distanza nel solo frame dell'impatto, quando la
+    #     mano sx può già essersi staccata dalla racchetta
+    wrist_dist = np.sqrt((before["kp10_x"] - before["kp9_x"]) ** 2
+                         + (before["kp10_y"] - before["kp9_y"]) ** 2).dropna()
+    features["two_hands_frac"] = ((wrist_dist < two_hands_dist).mean()
+                                  if len(wrist_dist) else np.nan)
+
     return features
 
 
@@ -171,7 +183,8 @@ def build_feature_matrix(df_kp: pd.DataFrame, shots_df: pd.DataFrame,
 
     for idx, shot_row in shots_df.iterrows():
         frame = int(shot_row["frame"])
-        feats = extract_features_for_shot(df_kp, frame, window_frames, ref)
+        feats = extract_features_for_shot(df_kp, frame, window_frames, ref,
+                                          config["statistics"]["two_hands_dist"])
         if feats is not None:
             rows.append(feats)
             valid_indices.append(idx)
@@ -198,7 +211,7 @@ def classify_shots(keypoints_path: str, shots_path: str, output_path: str, confi
     ]
     print(shots_df["tipo_regole"].value_counts().to_string())
 
-    # Salva anche le feature: servono per i boxplot e per calibrare le soglie
+    # Salva anche le feature: servono per calibrare le soglie
     shots_df = pd.concat([shots_df, feature_matrix], axis=1)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

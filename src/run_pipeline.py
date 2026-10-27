@@ -173,7 +173,7 @@ def build_steps(clip_dir: str, video: str, config_path: str) -> list[dict]:
         {"name": "plots", "script": "visualize.py",
          "args": ["--keypoints", clean, "--classified", classified,
                   "--output", p("results", "plots")],
-         "inputs": [clean, classified], "output": p("results", "plots", "shot_timeline.png")},
+         "inputs": [clean, classified], "output": p("results", "plots", "shot_distribution.png")},
         {"name": "render", "script": "render_video.py",
          "args": ["--video", video, "--keypoints", clean, "--classified", classified,
                   "--output", p("results", "annotated.mp4")],

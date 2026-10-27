@@ -4,8 +4,6 @@ visualize.py — [Membro C]
 Genera i grafici per la relazione finale:
   1. Velocità del polso nel tempo con i colpi evidenziati
   2. Distribuzione dei tipi di colpo (torta e barre)
-  3. Boxplot delle misure cinematiche per tipo di colpo
-  4. Linea temporale dei colpi
 
 Uso:
     python src/visualize.py --keypoints clips/clip1/keypoints_clean.csv
@@ -102,68 +100,6 @@ def plot_shot_distribution(shots_df: pd.DataFrame, output_dir: str):
     print(f"   📊 Distribuzione colpi salvata: {path}")
 
 
-def plot_feature_boxplots(shots_df: pd.DataFrame, output_dir: str):
-    """Boxplot delle feature cinematiche per tipo di colpo."""
-    tipo_col = "tipo_regole"
-
-    feature_cols = [c for c in ["wrist_r_x", "wrist_r_y", "swing_direction",
-                                 "wrist_above_shoulder", "bimanual_dist",
-                                 "left_wrist_above_shoulder", "feet_advance", "swing_range"]
-                    if c in shots_df.columns]
-    if not feature_cols:
-        print("   ⚠️  Feature non presenti nel CSV — salto boxplot.")
-        return
-
-    fig, axes = plt.subplots(1, len(feature_cols), figsize=(4 * len(feature_cols), 5))
-    if len(feature_cols) == 1:
-        axes = [axes]
-
-    for ax, col in zip(axes, feature_cols):
-        data = [shots_df[shots_df[tipo_col] == t][col].dropna().values
-                for t in shots_df[tipo_col].unique()]
-        labels = list(shots_df[tipo_col].unique())
-        colors = [COLOR_MAP.get(t, "gray") for t in labels]
-
-        bp = ax.boxplot(data, patch_artist=True)
-        # Etichette impostate a parte: "labels=" non esiste più da matplotlib 3.11
-        ax.set_xticks(range(1, len(labels) + 1), labels)
-        for patch, color in zip(bp["boxes"], colors):
-            patch.set_facecolor(color)
-            patch.set_alpha(0.7)
-        ax.set_title(col.replace("_", " "))
-        ax.set_ylabel("Valore normalizzato")
-
-    path = os.path.join(output_dir, "feature_boxplots.png")
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
-    print(f"   📦 Boxplot feature salvato: {path}")
-
-
-def plot_timeline(shots_df: pd.DataFrame, output_dir: str):
-    """Linea temporale dei colpi."""
-    tipo_col = "tipo_regole"
-
-    fig, ax = plt.subplots(figsize=(14, 2))
-    for _, row in shots_df.iterrows():
-        tipo = row.get(tipo_col, "dritto")
-        color = COLOR_MAP.get(tipo, "black")
-        ax.scatter(row["time_s"], 0, color=color, s=80, zorder=3)
-
-    patches = [mpatches.Patch(color=c, label=t) for t, c in COLOR_MAP.items()
-               if t in shots_df[tipo_col].values]
-    ax.legend(handles=patches, loc="upper right", ncol=4)
-    ax.set_xlabel("Tempo (s)")
-    ax.set_yticks([])
-    ax.set_title("Timeline dei colpi")
-
-    path = os.path.join(output_dir, "shot_timeline.png")
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
-    print(f"   📅 Timeline salvata: {path}")
-
-
 def visualize(keypoints_path: str, classified_path: str,
               output_dir: str, config: dict):
     print(f"📂 Carico keypoints: {keypoints_path}")
@@ -177,8 +113,6 @@ def visualize(keypoints_path: str, classified_path: str,
     print("📈 Genero grafici...")
     plot_wrist_speed(df_kp, shots_df, output_dir)
     plot_shot_distribution(shots_df, output_dir)
-    plot_feature_boxplots(shots_df, output_dir)
-    plot_timeline(shots_df, output_dir)
 
     print(f"\n✅ Tutti i grafici salvati in: {output_dir}")
 

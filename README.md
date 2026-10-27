@@ -26,22 +26,24 @@ tennis-pose/
 │   ├── evaluate.py              # [C] confronto con le annotazioni
 │   ├── game_stats.py            # [C] statistiche finali
 │   ├── visualize.py             # [C] grafici
-│   └── render_video.py          # [A/C] video con scheletro ed etichette
+│   ├── render_video.py          # [A/C] video con scheletro ed etichette
+│   └── compare_clips.py         # confronto delle statistiche tra le clip
 ├── notebooks/
 │   ├── 01_explore_keypoints.ipynb
 │   ├── 02_shot_detection.ipynb
 │   └── 03_classification.ipynb
 └── clips/                       # NON su GitHub (vedi .gitignore)
-    └── <nome_clip>/             # una cartella per ogni video
-        ├── video.mov            # copia del video originale
-        ├── annotations.csv      # colpi annotati a mano (frame,tipo)
-        ├── config.yaml          # parametri specifici della clip (opzionale)
-        ├── config_usato.yaml    # config effettivo usato (generato)
-        ├── keypoints.csv        # CSV grezzo di YOLO
-        ├── keypoints_clean.csv  # CSV pulito e normalizzato
-        ├── shots.csv            # colpi rilevati
-        ├── classified.csv       # colpi classificati
-        └── results/             # evaluation/, statistics/, plots/, annotated.mp4
+    ├── <nome_clip>/             # una cartella per ogni video
+    │   ├── video.mov            # copia del video originale
+    │   ├── annotations.csv      # colpi annotati a mano (frame,tipo)
+    │   ├── config.yaml          # parametri specifici della clip (opzionale)
+    │   ├── config_usato.yaml    # config effettivo usato (generato)
+    │   ├── keypoints.csv        # CSV grezzo di YOLO
+    │   ├── keypoints_clean.csv  # CSV pulito e normalizzato
+    │   ├── shots.csv            # colpi rilevati
+    │   ├── classified.csv       # colpi classificati
+    │   └── results/             # evaluation/, statistics/, plots/, annotated.mp4
+    └── confronto/               # compare_clips.py: confronto.csv, confronto.png
 ```
 
 ## Setup rapido
@@ -116,6 +118,15 @@ Con `--force` si rifà tutto, compresa l'estrazione YOLO.
 
 Per cambiare un parametro **solo per una clip**, scrivilo in `clips/<nome_clip>/config.yaml`
 (solo le voci da sovrascrivere, con la stessa struttura del `config.yaml` principale).
+
+### Confrontare le clip
+Dopo aver analizzato le clip, si confrontano le loro statistiche (tipi di colpo, colpi a rete,
+rovesci a una e a due mani, tempo medio tra i colpi):
+```bash
+python src/compare_clips.py                          # tutte le clip
+python src/compare_clips.py --clips sinner_30s federer
+```
+Il risultato va in `clips/confronto/`: una tabella (`confronto.csv`) e un grafico (`confronto.png`).
 
 ## Formato CSV keypoints (contratto tra i membri)
 

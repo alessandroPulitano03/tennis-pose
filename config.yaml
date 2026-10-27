@@ -64,8 +64,8 @@ classification:
     # Quanto i piedi sono più avanti (più in alto nell'immagine) della loro
     # posizione tipica, in lunghezze di busto: sopra questa soglia il giocatore
     # è vicino alla rete → colpo al volo (smash o volee).
-    # ~0 a fondo campo (servizi ≤ 0.6), smash a rete ≥ 1.7; calibrare col
-    # boxplot "feet_advance" in results/plots/
+    # ~0 a fondo campo (servizi ≤ 0.6), smash a rete ≥ 1.7; calibrare con la
+    # colonna "feet_advance" di classified.csv
     net_feet_advance_threshold: 1.0
     # Polso dx sopra le spalle → servizio (da fondo) o smash (a rete)
     # (in lunghezze di busto; nelle chiusure alte dei dritti arriva a ~0.95)
@@ -85,6 +85,12 @@ classification:
 # --- Statistiche ---
 statistics:
   fps: 30                     # usato solo lanciando gli script a mano: run_pipeline.py lo legge dal video
+  # Rovescio a due mani: nei 0.5 s prima dell'impatto i polsi restano a meno di
+  # two_hands_dist lunghezze di busto per almeno two_hands_min_frac del tempo
+  # (colonna "two_hands_frac" di classified.csv: due mani ≥ 0.38, quasi sempre
+  # ≥ 0.75; Federer, una mano, ≤ 0.31)
+  two_hands_dist: 0.4
+  two_hands_min_frac: 0.5
 
 # --- Video annotato ---
 render:

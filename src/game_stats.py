@@ -5,9 +5,11 @@ Calcola statistiche di gioco dai colpi classificati e le salva in CSV/JSON.
 
 Statistiche prodotte:
   - Conteggio colpi per tipo
-  - Colpi al minuto per tipo
   - Tempo medio tra due colpi consecutivi
   - Percentuale dritto/rovescio
+  - Colpi a rete e da fondo campo (stessa soglia su feet_advance usata
+    dal classificatore per smash e volee)
+  - Rovesci a una e a due mani (colonna two_hands_frac)
 
 Uso:
     python src/game_stats.py --classified clips/clip1/classified.csv
@@ -35,20 +37,15 @@ def compute_statistics(classified_path: str, output_dir: str, config: dict):
 
     # Durata totale del clip
     durata_s = df["time_s"].max() - df["time_s"].min()
-    durata_min = durata_s / 60
 
     # Conteggio colpi per tipo
     counts = df["tipo"].value_counts().to_dict()
     total = len(df)
 
-    # Colpi al minuto
-    rate = {k: round(v / durata_min, 2) for k, v in counts.items()}
-
     # Tempo medio tra colpi consecutivi
     df_sorted = df.sort_values("time_s")
     intervals = df_sorted["time_s"].diff().dropna()
     avg_interval = round(intervals.mean(), 3)
-    std_interval = round(intervals.std(), 3)
 
     # Percentuale dritto/rovescio
     n_dritto = counts.get("dritto", 0)
@@ -56,16 +53,31 @@ def compute_statistics(classified_path: str, output_dir: str, config: dict):
     pct_dritto = round(n_dritto / total * 100, 1) if total > 0 else 0
     pct_rovescio = round(n_rovescio / total * 100, 1) if total > 0 else 0
 
+    # Colpi a rete: piedi più avanti della soglia del classificatore
+    net_threshold = config["classification"]["rules"]["net_feet_advance_threshold"]
+    n_rete = int((df["feet_advance"] > net_threshold).sum())
+    pct_rete = round(n_rete / total * 100, 1) if total > 0 else 0
+
+    # Rovesci a due mani: polsi vicini per buona parte della preparazione
+    rovesci = df[df["tipo"] == "rovescio"]
+    n_due_mani = int((rovesci["two_hands_frac"] >= config["statistics"]["two_hands_min_frac"]).sum())
+    n_una_mano = len(rovesci) - n_due_mani
+    pct_due_mani = round(n_due_mani / len(rovesci) * 100, 1) if len(rovesci) > 0 else 0
+
     stats = {
-        "clip": os.path.basename(classified_path),
+        "clip": os.path.basename(os.path.dirname(os.path.abspath(classified_path))),
         "durata_secondi": round(durata_s, 1),
         "totale_colpi": total,
         "colpi_per_tipo": counts,
-        "colpi_per_minuto": rate,
         "tempo_medio_tra_colpi_s": avg_interval,
-        "deviazione_std_intervallo_s": std_interval,
         "percentuale_dritto": pct_dritto,
         "percentuale_rovescio": pct_rovescio,
+        "colpi_a_rete": n_rete,
+        "colpi_da_fondo": total - n_rete,
+        "percentuale_a_rete": pct_rete,
+        "rovesci_a_due_mani": n_due_mani,
+        "rovesci_a_una_mano": n_una_mano,
+        "percentuale_rovesci_a_due_mani": pct_due_mani,
     }
 
     os.makedirs(output_dir, exist_ok=True)
@@ -81,9 +93,11 @@ def compute_statistics(classified_path: str, output_dir: str, config: dict):
     print(f"   Durata clip:     {stats['durata_secondi']:.1f}s")
     print(f"   Totale colpi:    {total}")
     for tipo, n in counts.items():
-        print(f"   {tipo:12s}: {n:3d} ({rate[tipo]:.1f}/min)")
-    print(f"   Intervallo medio tra colpi: {avg_interval:.2f}s ± {std_interval:.2f}s")
+        print(f"   {tipo:12s}: {n:3d}")
+    print(f"   Intervallo medio tra colpi: {avg_interval:.2f}s")
     print(f"   Dritto: {pct_dritto}% | Rovescio: {pct_rovescio}%")
+    print(f"   A rete: {n_rete} ({pct_rete}%) | Da fondo: {total - n_rete}")
+    print(f"   Rovesci a due mani: {n_due_mani} | a una mano: {n_una_mano}")
 
     return stats
 
