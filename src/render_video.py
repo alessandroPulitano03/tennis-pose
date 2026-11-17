@@ -109,6 +109,10 @@ def render_video(video_path: str, keypoints_path: str, classified_path: str,
         if not ret:
             break
 
+        # Riquadro del giocatore in questo frame (None se non rilevato):
+        # serve anche per mettere l'etichetta del colpo sopra di lui
+        bbox = None
+
         # Recupera i keypoint di questo frame
         if frame_idx in df_kp_indexed.index:
             row = df_kp_indexed.loc[frame_idx]
@@ -139,20 +143,43 @@ def render_video(video_path: str, keypoints_path: str, classified_path: str,
             x2 = row.get("bbox_x2", np.nan)
             y2 = row.get("bbox_y2", np.nan)
             if not np.isnan(x1):
-                cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)),
-                              (200, 200, 200), 1)
+                bbox = (int(x1), int(y1), int(x2), int(y2))
+                cv2.rectangle(frame, bbox[:2], bbox[2:], (200, 200, 200), 1)
 
-        # Etichetta colpo
+        # Etichetta colpo: centrata sopra il riquadro del giocatore
         if frame_idx in frame_labels:
             tipo = frame_labels[frame_idx]
             label_color = COLOR_MAP.get(tipo, (255, 255, 255))
-            cv2.putText(frame, tipo.upper(),
-                        (30, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        cfg_render["font_scale"],
-                        label_color,
-                        cfg_render["thickness"] + 1,
-                        cv2.LINE_AA)
+            text = tipo.upper()
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            label_thickness = cfg_render["thickness"] + 1
+            (text_w, text_h), baseline = cv2.getTextSize(text, font, cfg_render["font_scale"],
+                                                  label_thickness)
+
+            if bbox is not None:
+                bx1, by1, bx2, _ = bbox
+                # x = centro del riquadro − metà del testo; y = 10 px sopra il riquadro.
+                # (in putText la y è la base del testo, non il suo bordo alto)
+                text_x = (bx1 + bx2) // 2 - text_w // 2
+                text_y = by1 - 10
+                # Il testo resta dentro l'immagine anche col giocatore vicino ai bordi
+                text_x = min(max(text_x, 10), width - text_w - 10)
+                text_y = max(text_y, text_h + 10)
+            else:
+                # Giocatore non rilevato in questo frame: in alto a sinistra
+                text_x, text_y = 30, 60
+
+            # Rettangolo scuro dietro il testo, con 6 px di margine, per
+            # leggerlo anche su sfondi chiari
+            pad = 6
+            cv2.rectangle(frame,
+                          (text_x - pad, text_y - text_h - pad),
+                          (text_x + text_w + pad, text_y + baseline + pad),
+                          (30, 30, 30), -1)
+
+            cv2.putText(frame, text, (text_x, text_y), font,
+                        cfg_render["font_scale"], label_color,
+                        label_thickness, cv2.LINE_AA)
 
         out.write(frame)
         frame_idx += 1
